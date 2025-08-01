@@ -142,7 +142,12 @@ export default function VideoPlayer({
     setBufferHealthy(isHealthy);
 
     // ONLY show buffering if buffer is completely empty AND video is trying to play
-    if (bufferedAheadAmount === 0 && isPlaying && !video.paused && !video.ended) {
+    if (
+      bufferedAheadAmount === 0 &&
+      isPlaying &&
+      !video.paused &&
+      !video.ended
+    ) {
       setIsBuffering(true);
       console.log("Buffer completely empty - showing critical loading");
     } else if (bufferedAheadAmount > 1) {
