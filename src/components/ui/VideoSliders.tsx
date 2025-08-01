@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 
 // Volume slider component
 interface VolumeSliderProps {
@@ -11,15 +11,36 @@ interface VolumeSliderProps {
 
 export function VolumeSlider({ volume, isMuted, onChange }: VolumeSliderProps) {
   return (
-    <input
-      type="range"
-      min="0"
-      max="1"
-      step="0.1"
-      value={isMuted ? 0 : volume}
-      onChange={onChange}
-      className="w-20 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer slider"
-    />
+    <div className="relative">
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        value={isMuted ? 0 : volume}
+        onChange={onChange}
+        className="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer slider
+        [&::-webkit-slider-thumb]:appearance-none 
+        [&::-webkit-slider-thumb]:w-3 
+        [&::-webkit-slider-thumb]:h-3 
+        [&::-webkit-slider-thumb]:bg-white 
+        [&::-webkit-slider-thumb]:rounded-full 
+        [&::-webkit-slider-thumb]:cursor-pointer
+        [&::-webkit-slider-thumb]:shadow-lg
+        [&::-moz-range-thumb]:w-3
+        [&::-moz-range-thumb]:h-3
+        [&::-moz-range-thumb]:bg-white
+        [&::-moz-range-thumb]:rounded-full
+        [&::-moz-range-thumb]:border-none
+        [&::-moz-range-thumb]:cursor-pointer
+        [&::-moz-range-thumb]:shadow-lg"
+      />
+      {/* Volume fill indicator */}
+      <div
+        className="absolute top-0 left-0 h-1 bg-white rounded-lg pointer-events-none"
+        style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
+      />
+    </div>
   );
 }
 
@@ -37,9 +58,6 @@ export function ProgressBar({
   onSeek,
   bufferedRanges,
 }: ProgressBarProps) {
-  const [isHovering, setIsHovering] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-
   // Calculate buffered segments for visualization
   const getBufferedSegments = () => {
     if (!bufferedRanges || !duration) return [];
@@ -56,35 +74,10 @@ export function ProgressBar({
   const bufferedSegments = getBufferedSegments();
   const progressPercent = (currentTime / (duration || 1)) * 100;
 
-  const handleMouseDown = () => {
-    setIsDragging(true);
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseEnter = () => {
-    setIsHovering(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovering(false);
-    setIsDragging(false);
-  };
-
   return (
-    <div
-      className="relative w-full group"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Track container with increased height on hover */}
-      <div
-        className={`relative w-full bg-white/30 rounded-lg overflow-hidden transition-all duration-200 ${
-          isHovering || isDragging ? "h-2" : "h-1"
-        }`}
-      >
+    <div className="relative w-full group">
+      {/* Track container with fixed height (no zoom effect) */}
+      <div className="relative w-full h-1 bg-white/30 rounded-lg overflow-hidden">
         {/* Buffered regions (light gray) */}
         {bufferedSegments.map((segment, index) => (
           <div
@@ -97,28 +90,24 @@ export function ProgressBar({
           />
         ))}
 
-        {/* Progress track background */}
+        {/* Progress track background - changed to white */}
         <div
-          className="absolute h-full bg-red-500 transition-all duration-150"
+          className="absolute h-full bg-white transition-all duration-150"
           style={{
             width: `${progressPercent}%`,
           }}
         />
-
-        {/* Scrubber handle (YouTube-style dot) */}
-        <div
-          className={`absolute top-1/2 transform -translate-y-1/2 bg-red-500 rounded-full transition-all duration-200 ${
-            isHovering || isDragging
-              ? "w-4 h-4 opacity-100"
-              : "w-0 h-0 opacity-0"
-          }`}
-          style={{
-            left: `calc(${progressPercent}% - ${
-              isHovering || isDragging ? "8px" : "0px"
-            })`,
-          }}
-        />
       </div>
+
+      {/* Progress dot - always visible, only zooms on hover */}
+      <div
+        className={`absolute top-1/2 transform -translate-y-1/2 bg-white rounded-full transition-all duration-200 hover:scale-125 ${
+          progressPercent > 0 ? "w-3 h-3" : "w-0 h-0"
+        }`}
+        style={{
+          left: `calc(${progressPercent}% - 6px)`,
+        }}
+      />
 
       {/* Invisible input slider for interaction */}
       <input
@@ -127,8 +116,6 @@ export function ProgressBar({
         max={duration || 0}
         value={currentTime}
         onChange={onSeek}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
       />
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -14,7 +14,8 @@ import {
   ArrowExpand01Icon,
   SubtitleIcon,
   VolumeHighIcon,
-  VolumeMute02Icon,
+  VolumeLowIcon,
+  VolumeOffIcon,
   PictureInPictureOnIcon,
   PictureInPictureExitIcon,
 } from "@hugeicons/core-free-icons";
@@ -93,23 +94,56 @@ export function VolumeButton({
   volume,
   onToggleMute,
 }: VolumeButtonProps) {
+  const [animationKey, setAnimationKey] = useState(0);
+  const [previousVolume, setPreviousVolume] = useState(volume);
+
+  // Trigger animation when volume changes
+  useEffect(() => {
+    if (volume !== previousVolume) {
+      setAnimationKey((prev) => prev + 1);
+      setPreviousVolume(volume);
+    }
+  }, [volume, previousVolume]);
+
+  // Determine which icon to show based on volume level
+  const getVolumeIcon = () => {
+    if (isMuted || volume === 0) {
+      return VolumeOffIcon;
+    } else if (volume <= 0.3) {
+      return VolumeLowIcon;
+    } else {
+      return VolumeHighIcon;
+    }
+  };
+
+  // Get color based on volume level for subtle visual feedback
+  const getVolumeColor = () => {
+    return "currentColor"; // Use default color instead of custom colors
+  };
+
+  const currentIcon = getVolumeIcon();
+
   return (
     <ControlButton onClick={onToggleMute}>
-      {isMuted || volume === 0 ? (
-        <HugeiconsIcon
-          icon={VolumeMute02Icon}
-          size={24}
-          color="currentColor"
-          strokeWidth={1.5}
-        />
-      ) : (
-        <HugeiconsIcon
-          icon={VolumeHighIcon}
-          size={24}
-          color="currentColor"
-          strokeWidth={1.5}
-        />
-      )}
+      <div className="relative">
+        {/* Animated volume icon with key-based animation */}
+        <div
+          key={animationKey}
+          className="transition-all duration-300 ease-in-out transform"
+          style={{
+            transform: `scale(${isMuted ? 0.9 : 1})`,
+            opacity: isMuted ? 0.7 : 1,
+          }}
+        >
+          <HugeiconsIcon
+            icon={currentIcon}
+            size={24}
+            color={getVolumeColor()}
+            strokeWidth={1.5}
+            className="transition-all duration-200 ease-in-out animate-pulse-once"
+          />
+        </div>
+      </div>
     </ControlButton>
   );
 }

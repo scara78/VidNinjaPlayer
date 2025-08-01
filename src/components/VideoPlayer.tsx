@@ -7,7 +7,6 @@ import { AlertCircleIcon, Loading03Icon } from "@hugeicons/core-free-icons";
 import {
   PlayPauseButton,
   VolumeButton,
-  VolumeSlider,
   ProgressBar,
   TimeDisplay,
   ServerButton,
@@ -96,6 +95,10 @@ export default function VideoPlayer({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("quality");
 
+  // Volume control hover state
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const volumeHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Playback speed options
   const playbackSpeeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -134,15 +137,16 @@ export default function VideoPlayer({
     // Update state
     setBufferedAhead(bufferedAheadAmount);
 
-    // With unlimited buffering, we're always healthy unless buffer is completely empty
-    const isHealthy = bufferedAheadAmount >= 1;
+    // Buffer is healthy if we have at least 3 seconds buffered ahead
+    const isHealthy = bufferedAheadAmount >= 3;
     setBufferHealthy(isHealthy);
 
-    // ONLY show buffering if buffer is completely empty (0 seconds) and video is playing
-    if (bufferedAheadAmount === 0 && isPlaying && !video.paused) {
+    // ONLY show buffering if buffer is completely empty AND video is trying to play
+    if (bufferedAheadAmount === 0 && isPlaying && !video.paused && !video.ended) {
       setIsBuffering(true);
       console.log("Buffer completely empty - showing critical loading");
-    } else {
+    } else if (bufferedAheadAmount > 1) {
+      // Clear buffering when we have sufficient buffer
       setIsBuffering(false);
     }
 
@@ -150,7 +154,7 @@ export default function VideoPlayer({
     console.log(
       `Silent buffering: ${bufferedAheadAmount.toFixed(
         1
-      )}s ahead, background download active`
+      )}s ahead, healthy: ${isHealthy}`
     );
   }, [isPlaying]);
 
@@ -212,6 +216,23 @@ export default function VideoPlayer({
     setShowControls(true);
     hideControlsAfterDelay();
   }, [hideControlsAfterDelay]);
+
+  // Volume slider hover management
+  const showVolumeSliderTemporarily = useCallback(() => {
+    if (volumeHideTimeoutRef.current) {
+      clearTimeout(volumeHideTimeoutRef.current);
+    }
+    setShowVolumeSlider(true);
+  }, []);
+
+  const hideVolumeSliderAfterDelay = useCallback(() => {
+    if (volumeHideTimeoutRef.current) {
+      clearTimeout(volumeHideTimeoutRef.current);
+    }
+    volumeHideTimeoutRef.current = setTimeout(() => {
+      setShowVolumeSlider(false);
+    }, 300); // 300ms delay before hiding
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1476,11 +1497,6 @@ export default function VideoPlayer({
             {isNetworkSlow && !isInitialLoad && (
               <p className="text-white text-lg">Network issue detected...</p>
             )}
-            {bufferHealthy && (
-              <p className="text-green-400 text-sm mt-2">
-                Buffer healthy - this should resolve quickly
-              </p>
-            )}
           </div>
         </div>
       )}
@@ -1494,8 +1510,13 @@ export default function VideoPlayer({
       >
         {/* Bottom controls */}
         <div className="absolute bottom-0 left-0 right-0 p-2">
-          {/* Progress bar */}
-          <div className="mb-2">
+          {/* Progress bar - hidden when volume slider is shown */}
+          <div
+            className={cn(
+              "mb-2 transition-opacity duration-200",
+              showVolumeSlider ? "opacity-0" : "opacity-100"
+            )}
+          >
             <ProgressBar
               currentTime={currentTime}
               duration={duration}
@@ -1523,17 +1544,117 @@ export default function VideoPlayer({
                 />
               </div>
 
-              <div className="flex items-center space-x-2">
+              {/* Volume control with hover */}
+              <div
+                className="relative flex items-center py-2 px-1"
+                onMouseEnter={showVolumeSliderTemporarily}
+                onMouseLeave={hideVolumeSliderAfterDelay}
+              >
                 <VolumeButton
                   isMuted={isMuted}
                   volume={volume}
                   onToggleMute={toggleMute}
                 />
-                <VolumeSlider
-                  volume={volume}
-                  isMuted={isMuted}
-                  onChange={handleVolumeChange}
-                />
+
+                {/* Volume slider overlay positioned above button */}
+                <div
+                  className={cn(
+                    "absolute bottom-full mb-3 left-1/2 transform -translate-x-1/2 transition-all duration-200 z-50",
+                    showVolumeSlider
+                      ? "opacity-100 visible"
+                      : "opacity-0 invisible"
+                  )}
+                  onMouseEnter={showVolumeSliderTemporarily}
+                  onMouseLeave={hideVolumeSliderAfterDelay}
+                >
+                  {/* Vertical volume slider container */}
+                  <div className="relative">
+                    {/* Main volume slider container */}
+                    <div className="bg-black/90 backdrop-blur-sm rounded-lg px-4 py-6 flex flex-col items-center space-y-4 shadow-2xl">
+                      {/* Volume percentage display */}
+                      <span className="text-white text-sm font-medium w-8 text-center">
+                        {Math.round((isMuted ? 0 : volume) * 100)}%
+                      </span>
+
+                      {/* Vertical volume slider */}
+                      <div className="h-32 flex items-center relative">
+                        {/* Slider track background */}
+                        <div className="absolute left-1/2 transform -translate-x-1/2 w-1 h-32 bg-white/20 rounded-lg"></div>
+
+                        {/* Volume fill indicator */}
+                        <div
+                          className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 bg-white rounded-lg pointer-events-none"
+                          style={{ height: `${(isMuted ? 0 : volume) * 100}%` }}
+                        />
+
+                        {/* Clickable area for volume control */}
+                        <div
+                          className="absolute left-1/2 transform -translate-x-1/2 w-8 h-32 cursor-pointer"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            const rect =
+                              e.currentTarget.getBoundingClientRect();
+                            const y = e.clientY - rect.top;
+                            const newVolume = Math.max(
+                              0,
+                              Math.min(1, 1 - y / rect.height)
+                            );
+
+                            const video = videoRef.current;
+                            if (video) {
+                              video.volume = newVolume;
+                              video.muted = newVolume === 0;
+                            }
+
+                            const handleMouseMove = (moveEvent: MouseEvent) => {
+                              // Calculate new volume based on mouse position relative to the original rect
+                              const newY = moveEvent.clientY - rect.top;
+                              const newVol = Math.max(
+                                0,
+                                Math.min(1, 1 - newY / rect.height)
+                              );
+                              if (video) {
+                                video.volume = newVol;
+                                video.muted = newVol === 0;
+                              }
+                            };
+
+                            const handleMouseUp = () => {
+                              document.removeEventListener(
+                                "mousemove",
+                                handleMouseMove
+                              );
+                              document.removeEventListener(
+                                "mouseup",
+                                handleMouseUp
+                              );
+                            };
+
+                            document.addEventListener(
+                              "mousemove",
+                              handleMouseMove
+                            );
+                            document.addEventListener("mouseup", handleMouseUp);
+                          }}
+                        />
+
+                        {/* Volume thumb indicator - positioned based on volume, not mouse */}
+                        <div
+                          className="absolute left-1/2 transform -translate-x-1/2 w-4 h-4 bg-white rounded-full shadow-lg pointer-events-none transition-none"
+                          style={{
+                            bottom: `${(isMuted ? 0 : volume) * 100}%`,
+                            marginBottom: "-8px",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Bottom-pointing arrow */}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2">
+                      <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-black/90"></div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <TimeDisplay
