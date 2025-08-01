@@ -48,6 +48,8 @@ interface VideoPlayerProps {
   onVideoReady?: () => void;
   // Hidden mode for preloading only
   isHiddenPreloader?: boolean;
+  // Backdrop image for loading overlay
+  backdropUrl?: string | null;
 }
 
 export default function VideoPlayer({
@@ -63,6 +65,7 @@ export default function VideoPlayer({
   isLoadingTVContent = false,
   onVideoReady,
   isHiddenPreloader = false,
+  backdropUrl = null,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -107,6 +110,7 @@ export default function VideoPlayer({
   const [isNetworkSlow, setIsNetworkSlow] = useState(false);
   const [bufferHealthy, setBufferHealthy] = useState(false);
   const [bufferedAhead, setBufferedAhead] = useState(0); // Track buffered ahead amount
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // Track if this is initial load vs rebuffering
   const networkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const bufferCheckRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -183,6 +187,7 @@ export default function VideoPlayer({
     setIsNetworkSlow(false);
     setIsBuffering(false);
     setIsLoading(false);
+    setIsInitialLoad(false); // Mark initial load as complete
 
     // Start continuous buffer monitoring
     if (bufferCheckRef.current) {
@@ -255,8 +260,9 @@ export default function VideoPlayer({
     };
 
     const handleSeeking = () => {
-      // Don't show buffering for seeks - let it happen silently
-      console.log("Video seeking started - silent operation");
+      // Show buffering animation during fast forward/seeking
+      setIsBuffering(true);
+      console.log("Video seeking started - showing buffering animation");
     };
 
     const handleSeeked = () => {
@@ -392,6 +398,7 @@ export default function VideoPlayer({
 
     setIsLoading(true);
     setError(null);
+    setIsInitialLoad(true); // Reset initial load state for new stream
 
     if (stream.type === "hls" && stream.playlist) {
       if (Hls.isSupported()) {
@@ -1364,10 +1371,7 @@ export default function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "relative bg-black rounded-lg overflow-hidden group",
-        className
-      )}
+      className={cn("relative bg-black overflow-hidden group", className)}
       onMouseEnter={() => setShowControls(true)}
       onMouseMove={showControlsTemporarily}
       onMouseLeave={() => {
@@ -1387,7 +1391,7 @@ export default function VideoPlayer({
 
       <video
         ref={videoRef}
-        className="w-full h-full"
+        className="w-screen h-screen"
         onClick={togglePlay}
         playsInline
         preload="auto"
@@ -1437,8 +1441,20 @@ export default function VideoPlayer({
       {/* Critical loading overlay - only for real issues or empty buffer */}
       {(isLoading ||
         (isBuffering && (isNetworkSlow || bufferedAhead === 0))) && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="text-center">
+        <div className="absolute inset-0 flex items-center justify-center z-50">
+          {/* Backdrop image */}
+          {backdropUrl && (
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{
+                backgroundImage: `url(${backdropUrl})`,
+                filter: "blur(8px) brightness(0.3)",
+              }}
+            />
+          )}
+
+          {/* Loading content */}
+          <div className="relative z-10 text-center">
             <HugeiconsIcon
               icon={Loading03Icon}
               size={48}
@@ -1446,11 +1462,20 @@ export default function VideoPlayer({
               strokeWidth={1.5}
               className="mx-auto mb-4 animate-spin"
             />
-            <p className="text-white text-lg">
-              {isNetworkSlow
-                ? "Network issue detected..."
-                : "Loading content..."}
-            </p>
+            {/* Show different messages for initial load vs rebuffering */}
+            {isInitialLoad ? (
+              <p className="text-white text-lg">
+                {isNetworkSlow
+                  ? "Network issue detected..."
+                  : "Loading content..."}
+              </p>
+            ) : (
+              // For rebuffering, just show the spinning animation without text
+              !isNetworkSlow && <div className="h-6"></div>
+            )}
+            {isNetworkSlow && !isInitialLoad && (
+              <p className="text-white text-lg">Network issue detected...</p>
+            )}
             {bufferHealthy && (
               <p className="text-green-400 text-sm mt-2">
                 Buffer healthy - this should resolve quickly

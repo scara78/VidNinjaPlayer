@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import VideoPlayer from "@/components/VideoPlayer";
 import { Stream } from "@/types/stream";
@@ -17,9 +17,6 @@ export default function MoviePlayerPage() {
 
   const [stream, setStream] = useState<Stream | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isStreamReady, setIsStreamReady] = useState(false);
-  const [isPreloadingMetadata, setIsPreloadingMetadata] = useState(false);
-  const [metadataReady, setMetadataReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMedia, setSelectedMedia] = useState<MediaInfo | null>(null);
   const [streamSourceInfo, setStreamSourceInfo] = useState<{
@@ -40,6 +37,7 @@ export default function MoviePlayerPage() {
     sourceId: string;
     embedId: string;
   } | null>(null);
+  const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
 
   // Initialize the player and fetch movie data
   useEffect(() => {
@@ -53,6 +51,14 @@ export default function MoviePlayerPage() {
         // Fetch movie details from TMDB
         const movieData = await tmdbService.getMovieDetails(parseInt(tmdbId));
         setSelectedMedia(movieData);
+
+        // Load backdrop from TMDB (already proxied)
+        if (movieData.backdrop) {
+          console.log("Generated backdrop URL:", movieData.backdrop);
+          setBackdropUrl(movieData.backdrop);
+        } else {
+          console.log("No backdrop available for this movie");
+        }
 
         // Start fetching stream
         await fetchStream(movieData);
@@ -72,9 +78,6 @@ export default function MoviePlayerPage() {
     setStreamSourceInfo(null);
     setOriginalStream(null);
     setOriginalSourceInfo(null);
-    setIsStreamReady(false);
-    setIsPreloadingMetadata(false);
-    setMetadataReady(false);
 
     try {
       // Get all available sources
@@ -140,10 +143,7 @@ export default function MoviePlayerPage() {
             `Stream found from source: ${result.sourceId} (displayed as: ${serverName})`
           );
 
-          // Show "Loading stream..." briefly, VideoPlayer will notify when ready
-          setTimeout(() => {
-            setIsStreamReady(true);
-          }, 800);
+          // Stream found successfully
         } else {
           setError(
             `No stream found for ${media.title}. This may happen if the content is not available on any of our providers.`
@@ -257,32 +257,6 @@ export default function MoviePlayerPage() {
     }
   };
 
-  // Handle when video is ready for instant playback
-  const handleVideoReady = useCallback(() => {
-    console.log("Video is ready for instant playback!");
-    setMetadataReady(true);
-    setIsStreamReady(true);
-  }, []);
-
-  // Effect to preload metadata when stream is available
-  useEffect(() => {
-    if (stream && !metadataReady && !isPreloadingMetadata) {
-      console.log("Starting metadata preloading in background...");
-      setIsPreloadingMetadata(true);
-
-      // Give the backdrop loading screen time to show, then start preloading
-      setTimeout(() => {
-        console.log("Metadata preload phase completed, ready to show player");
-        setMetadataReady(true);
-
-        // Short delay to show "Ready to play" state
-        setTimeout(() => {
-          setIsStreamReady(true);
-        }, 800);
-      }, 1500); // 1.5 seconds for metadata preloading simulation
-    }
-  }, [stream, metadataReady, isPreloadingMetadata]);
-
   // Error state
   if (error && !selectedMedia) {
     return (
@@ -305,10 +279,22 @@ export default function MoviePlayerPage() {
 
   return (
     <div className="fixed inset-0 bg-black">
-      {/* Loading overlay - Show until stream is ready */}
-      {(!stream || !metadataReady || !isStreamReady) && (
-        <div className="absolute inset-0 bg-black flex items-center justify-center z-50">
-          <div className="text-center">
+      {/* Loading overlay - Show until stream is found */}
+      {!stream && (
+        <div className="absolute inset-0 flex items-center justify-center z-50">
+          {/* Backdrop image */}
+          {backdropUrl && (
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{
+                backgroundImage: `url(${backdropUrl})`,
+                filter: "blur(8px) brightness(0.3)",
+              }}
+            />
+          )}
+
+          {/* Loading content */}
+          <div className="relative z-10 text-center">
             <HugeiconsIcon
               icon={Loading03Icon}
               size={64}
@@ -336,36 +322,8 @@ export default function MoviePlayerPage() {
         </div>
       )}
 
-      {/* Hidden VideoPlayer for metadata preloading */}
-      {stream && !metadataReady && (
-        <div
-          style={{
-            position: "fixed",
-            top: "-9999px",
-            left: "-9999px",
-            width: "1px",
-            height: "1px",
-            visibility: "hidden",
-            opacity: 0,
-            pointerEvents: "none",
-            zIndex: -1000,
-          }}
-        >
-          <VideoPlayer
-            stream={stream}
-            className="w-64 aspect-video"
-            availableSources={[]}
-            onSwitchServer={() => {}}
-            isLoadingServer={false}
-            mediaType="movie"
-            onVideoReady={handleVideoReady}
-            isHiddenPreloader={true}
-          />
-        </div>
-      )}
-
-      {/* Video Player - Full screen when ready */}
-      {stream && metadataReady && isStreamReady && (
+      {/* Video Player - Show when stream is available, let it handle loading */}
+      {stream && (
         <VideoPlayer
           stream={stream}
           className="w-full h-full"
@@ -374,6 +332,7 @@ export default function MoviePlayerPage() {
           onSwitchServer={switchServer}
           isLoadingServer={isLoading}
           mediaType="movie"
+          backdropUrl={backdropUrl}
         />
       )}
     </div>
