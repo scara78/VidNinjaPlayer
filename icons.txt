@@ -1,0 +1,26 @@
+PlayIcon
+PauseIcon
+Settings02Icon
+ServerStack02Icon
+Loading03Icon
+GoBackward10SecIcon
+GoForward10SecIcon
+AlertCircleIcon
+ArrowLeft01Icon
+ArrowRight01Icon
+Film01Icon
+ListViewIcon
+ArrowShrink01Icon<- Exit fullscreen
+ArrowExpand01Icon<- fullscreen
+Search01Icon
+SubtitleIcon
+MirroringScreenIcon
+VolumeHighIcon
+VolumeLowIcon
+VolumeMute02Icon
+Tv01Icon
+PictureInPictureOnIcon
+PictureInPictureExitIcon
+
+
+Add the icon to server "ComingSoon02Icon" expect vidsrc.vip in the Select Selector UI. not backend and grey thse and keep the Vidsrc.vip server active.
